@@ -17,7 +17,6 @@ import { calculateParticipantFee, calculateTotalFee } from '@/lib/fee-calculator
 import {
   validateBangladeshMobile,
   generateRegistrationNumber,
-  generateTransactionId,
   formatCurrency,
 } from '@/lib/utils';
 
@@ -145,6 +144,7 @@ export default function RegisterPage() {
     setSubmitError('');
 
     try {
+      // 1. Create participant
       const { data: participant, error: pErr } = await supabase
         .from('participants')
         .insert({
@@ -162,9 +162,11 @@ export default function RegisterPage() {
 
       if (pErr) throw new Error(pErr.message);
 
+      // 2. Get event
       const { data: event } = await supabase.from('events').select('id').limit(1).single();
       if (!event) throw new Error('Event not found');
 
+      // 3. Create registration (pending)
       const regNum = generateRegistrationNumber();
       const { data: registration, error: rErr } = await supabase
         .from('registrations')
@@ -178,33 +180,46 @@ export default function RegisterPage() {
           subtotal: feeBreakdown.subtotal,
           gateway_charge: feeBreakdown.gatewayCharge,
           total_amount: feeBreakdown.total,
-          registration_status: 'confirmed',
+          registration_status: 'pending',
         })
         .select('id')
         .single();
 
       if (rErr) throw new Error(rErr.message);
 
-      const txnId = generateTransactionId();
-      await supabase.from('payments').insert({
-        registration_id: registration.id,
-        transaction_id: txnId,
-        payment_method: 'Online',
-        amount: feeBreakdown.total,
-        gateway_charge: feeBreakdown.gatewayCharge,
-        status: 'paid',
-        paid_at: new Date().toISOString(),
+      // 4. Initiate PayStation payment via edge function
+      const callbackUrl = `${window.location.origin}/payment/callback`;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const psResponse = await fetch(`${supabaseUrl}/functions/v1/paystation-initiate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          registration_id: registration.id,
+          callback_url: callbackUrl,
+        }),
       });
 
-      await supabase.from('tickets').insert({
-        registration_id: registration.id,
-        ticket_id: 'TKT-' + txnId.slice(4, 12),
-      });
+      if (!psResponse.ok) {
+        const errData = await psResponse.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error || 'Payment gateway error');
+      }
 
-      navigate(`/confirmation/${registration.id}`);
+      const psData = await psResponse.json();
+
+      if (psData.payment_url) {
+        // Redirect to PayStation payment page
+        window.location.href = psData.payment_url;
+        return;
+      }
+
+      throw new Error('No payment URL received from gateway');
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
-    } finally {
       setSubmitting(false);
     }
   }

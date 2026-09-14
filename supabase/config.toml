@@ -1,0 +1,8 @@
+[functions.paystation-initiate]
+verify_jwt = false
+
+[functions.paystation-ipn]
+verify_jwt = false
+
+[functions.paystation-verify]
+verify_jwt = false

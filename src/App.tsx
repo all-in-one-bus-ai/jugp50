@@ -9,6 +9,7 @@ const ParticipantsPage = lazy(() => import('@/pages/ParticipantsPage'));
 const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
 const ConfirmationPage = lazy(() => import('@/pages/ConfirmationPage'));
 const TicketPage = lazy(() => import('@/pages/TicketPage'));
+const PaymentCallbackPage = lazy(() => import('@/pages/PaymentCallbackPage'));
 const AdminLogin = lazy(() => import('@/pages/admin/AdminLogin'));
 const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
 const AdminParticipants = lazy(() => import('@/pages/admin/AdminParticipants'));
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/confirmation/:registrationId" element={<ConfirmationPage />} />
           <Route path="/ticket/:registrationId" element={<TicketPage />} />
+          <Route path="/payment/callback" element={<PaymentCallbackPage />} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>

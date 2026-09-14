@@ -14,6 +14,7 @@ export default function SettingsPage() {
     { id: 'fees', label: 'Fee Settings' },
     { id: 'registration', label: 'Registration Settings' },
     { id: 'payment', label: 'Payment Settings' },
+    { id: 'paystation', label: 'PayStation Gateway' },
     { id: 'halls', label: 'Hall Management' },
     { id: 'batches', label: 'Batch Management' },
   ];
@@ -41,6 +42,7 @@ export default function SettingsPage() {
       {activeTab === 'fees' && <FeeSettings />}
       {activeTab === 'registration' && <RegistrationSettings />}
       {activeTab === 'payment' && <PaymentSettings />}
+      {activeTab === 'paystation' && <PayStationSettings />}
       {activeTab === 'halls' && <HallManagement />}
       {activeTab === 'batches' && <BatchManagement />}
     </div>
@@ -296,6 +298,212 @@ function PaymentSettings() {
       <button onClick={save} disabled={saving} className="btn-primary mt-6 disabled:opacity-60">
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         Save Changes
+      </button>
+    </div>
+  );
+}
+
+function PayStationSettings() {
+  const { addToast } = useToast();
+  const [env, setEnv] = useState('sandbox');
+  const [merchantId, setMerchantId] = useState('');
+  const [password, setPassword] = useState('');
+  const [callbackUrl, setCallbackUrl] = useState('');
+  const [ipnUrl, setIpnUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', [
+        'paystation_env',
+        'paystation_merchant_id',
+        'paystation_password',
+        'paystation_callback_url',
+        'paystation_ipn_url',
+      ])
+      .then(({ data }) => {
+        if (data) {
+          const map = Object.fromEntries(data.map((s) => [s.key, s.value]));
+          setEnv(map.paystation_env || 'sandbox');
+          setMerchantId(map.paystation_merchant_id || '');
+          setPassword(map.paystation_password || '');
+          setCallbackUrl(map.paystation_callback_url || '');
+          setIpnUrl(map.paystation_ipn_url || '');
+        }
+        setLoaded(true);
+      });
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    const updates: [string, string][] = [
+      ['paystation_env', env],
+      ['paystation_merchant_id', merchantId],
+      ['paystation_password', password],
+      ['paystation_callback_url', callbackUrl],
+      ['paystation_ipn_url', ipnUrl],
+    ];
+    for (const [key, value] of updates) {
+      await supabase.from('settings').update({ value }).eq('key', key);
+    }
+    setSaving(false);
+    addToast('success', 'PayStation settings saved successfully');
+  }
+
+  if (!loaded) {
+    return (
+      <div className="card p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 w-48 bg-gray-200 rounded" />
+          <div className="h-10 w-full bg-gray-100 rounded" />
+          <div className="h-10 w-full bg-gray-100 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-6">
+      <h2 className="font-serif text-lg font-semibold text-gray-900 mb-2">
+        PayStation Payment Gateway
+      </h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Configure your PayStation credentials below. Switch between Sandbox and Live mode. Sandbox
+        uses test credentials for development; Live mode processes real payments.
+      </p>
+
+      <div className="space-y-5 max-w-xl">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Environment</label>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setEnv('sandbox')}
+              className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                env === 'sandbox'
+                  ? 'border-amber-500 bg-amber-50 text-amber-800'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    env === 'sandbox' ? 'bg-amber-500' : 'bg-gray-300'
+                  }`}
+                />
+                Sandbox
+              </div>
+              <p className="text-xs mt-1 opacity-70">Test payments</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEnv('live')}
+              className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                env === 'live'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    env === 'live' ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                />
+                Live
+              </div>
+              <p className="text-xs mt-1 opacity-70">Real payments</p>
+            </button>
+          </div>
+        </div>
+
+        {env === 'sandbox' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm text-amber-800 font-medium mb-1">Sandbox Mode Active</p>
+            <p className="text-xs text-amber-700">
+              No real money will be charged. Use PayStation's test credentials for development.
+            </p>
+          </div>
+        )}
+
+        {env === 'live' && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <p className="text-sm text-emerald-800 font-medium mb-1">Live Mode Active</p>
+            <p className="text-xs text-emerald-700">
+              Real payments will be processed. Make sure your live credentials are correct.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Merchant ID</label>
+          <input
+            type="text"
+            className="input-field"
+            placeholder="e.g. 104-1653730183"
+            value={merchantId}
+            onChange={(e) => setMerchantId(e.target.value)}
+          />
+          <p className="text-xs text-gray-400 mt-1">Your PayStation Merchant ID</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Merchant Password
+          </label>
+          <input
+            type="password"
+            className="input-field"
+            placeholder="Enter merchant password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <p className="text-xs text-gray-400 mt-1">Your PayStation API password</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-5">
+          <h3 className="text-sm font-medium text-gray-900 mb-3">Advanced (Optional)</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Leave these empty to use auto-detected URLs. Only fill in if you need to override the
+            defaults.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Callback URL (Browser Return)
+              </label>
+              <input
+                type="url"
+                className="input-field"
+                placeholder="Auto-detected from your domain"
+                value={callbackUrl}
+                onChange={(e) => setCallbackUrl(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                IPN URL (Server Notification)
+              </label>
+              <input
+                type="url"
+                className="input-field"
+                placeholder="Auto-detected from Supabase"
+                value={ipnUrl}
+                onChange={(e) => setIpnUrl(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving} className="btn-primary mt-6 disabled:opacity-60">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        Save PayStation Settings
       </button>
     </div>
   );
